@@ -19,3 +19,7 @@ DATABASE_URL = os.getenv("DATABASE_URL") or URL.create(
     database=MYSQL_DB,
 ).render_as_string(hide_password=False)
 DATABASE_BACKEND = os.getenv("DATABASE_BACKEND", "memory").lower()
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "netpulse_db")
+DEVICES_COLLECTION = os.getenv("DEVICES_COLLECTION", "devices")
+ALERTS_COLLECTION = os.getenv("ALERTS_COLLECTION", "alerts")

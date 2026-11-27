@@ -1,10 +1,13 @@
+from collections.abc import Generator
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
 from app.config import DATABASE_BACKEND
-from app.db.session import get_db
+from app.db.session import SessionLocal
+from app.db.mongo import get_db as get_mongo_db
 from app.models import AlertResponse, DeviceCreate, DeviceResponse, StatusUpdate
 from app.repositories.device_repository import DeviceRepository, InMemoryDeviceRepository
+from app.repositories.mongo_device_repository import MongoDeviceRepository
 from app.repositories.mysql_device_repository import MySqlDeviceRepository
 from app.services.device_service import (
     DeviceAlreadyExistsError,
@@ -16,14 +19,21 @@ router = APIRouter()
 memory_repository = InMemoryDeviceRepository()
 
 
-def get_repository(
-    database: Session = Depends(get_db),
-) -> DeviceRepository:
-    if DATABASE_BACKEND == "mysql":
-        return MySqlDeviceRepository(database)
-    if DATABASE_BACKEND != "memory":
-        raise ValueError("DATABASE_BACKEND must be either 'memory' or 'mysql'")
-    return memory_repository
+def get_repository() -> Generator[DeviceRepository, None, None]:
+    if DATABASE_BACKEND == "memory":
+        yield memory_repository
+    elif DATABASE_BACKEND == "mongodb":
+        yield MongoDeviceRepository(get_mongo_db())
+    elif DATABASE_BACKEND == "mysql":
+        database = SessionLocal()
+        try:
+            yield MySqlDeviceRepository(database)
+        finally:
+            database.close()
+    else:
+        raise ValueError(
+            "DATABASE_BACKEND must be 'memory', 'mongodb', or 'mysql'"
+        )
 
 
 def get_device_service(
