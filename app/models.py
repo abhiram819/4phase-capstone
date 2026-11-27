@@ -11,6 +11,7 @@ class DeviceFields(BaseModel):
     device_type: Literal["router", "switch", "server"]
     ip_address: str
     status: Literal["online", "offline"] = "online"
+    location: str | None = None
 
     @field_validator("ip_address")
     @classmethod

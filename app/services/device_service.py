@@ -3,14 +3,7 @@ from typing import Literal
 from app.events import create_offline_alert
 from app.models import DeviceCreate, DeviceResponse
 from app.repositories.device_repository import DeviceRepository
-
-
-class DeviceAlreadyExistsError(Exception):
-    pass
-
-
-class DeviceNotFoundError(Exception):
-    pass
+from app.services.errors import DeviceAlreadyExistsError, DeviceNotFoundError
 
 
 class DeviceService:

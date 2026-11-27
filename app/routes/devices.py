@@ -1,7 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
+from app.config import DATABASE_BACKEND
+from app.db.session import get_db
 from app.models import AlertResponse, DeviceCreate, DeviceResponse, StatusUpdate
-from app.repositories.device_repository import InMemoryDeviceRepository
+from app.repositories.device_repository import DeviceRepository, InMemoryDeviceRepository
+from app.repositories.mysql_device_repository import MySqlDeviceRepository
 from app.services.device_service import (
     DeviceAlreadyExistsError,
     DeviceNotFoundError,
@@ -9,8 +13,23 @@ from app.services.device_service import (
 )
 
 router = APIRouter()
-repository = InMemoryDeviceRepository()
-device_service = DeviceService(repository)
+memory_repository = InMemoryDeviceRepository()
+
+
+def get_repository(
+    database: Session = Depends(get_db),
+) -> DeviceRepository:
+    if DATABASE_BACKEND == "mysql":
+        return MySqlDeviceRepository(database)
+    if DATABASE_BACKEND != "memory":
+        raise ValueError("DATABASE_BACKEND must be either 'memory' or 'mysql'")
+    return memory_repository
+
+
+def get_device_service(
+    repository: DeviceRepository = Depends(get_repository),
+) -> DeviceService:
+    return DeviceService(repository)
 
 
 @router.post(
@@ -19,7 +38,10 @@ device_service = DeviceService(repository)
     status_code=status.HTTP_201_CREATED,
     responses={409: {"description": "A device with this ID already exists"}},
 )
-def register_device(payload: DeviceCreate) -> DeviceResponse:
+def register_device(
+    payload: DeviceCreate,
+    device_service: DeviceService = Depends(get_device_service),
+) -> DeviceResponse:
     try:
         return device_service.register(payload)
     except DeviceAlreadyExistsError as error:
@@ -29,7 +51,9 @@ def register_device(payload: DeviceCreate) -> DeviceResponse:
 
 
 @router.get("/devices", response_model=list[DeviceResponse])
-def list_devices() -> list[DeviceResponse]:
+def list_devices(
+    device_service: DeviceService = Depends(get_device_service),
+) -> list[DeviceResponse]:
     return device_service.list()
 
 
@@ -38,7 +62,10 @@ def list_devices() -> list[DeviceResponse]:
     response_model=DeviceResponse,
     responses={404: {"description": "Device not found"}},
 )
-def get_device(device_id: str) -> DeviceResponse:
+def get_device(
+    device_id: str,
+    device_service: DeviceService = Depends(get_device_service),
+) -> DeviceResponse:
     try:
         return device_service.get(device_id)
     except DeviceNotFoundError as error:
@@ -52,7 +79,11 @@ def get_device(device_id: str) -> DeviceResponse:
     response_model=DeviceResponse,
     responses={404: {"description": "Device not found"}},
 )
-def update_device_status(device_id: str, payload: StatusUpdate) -> DeviceResponse:
+def update_device_status(
+    device_id: str,
+    payload: StatusUpdate,
+    device_service: DeviceService = Depends(get_device_service),
+) -> DeviceResponse:
     try:
         return device_service.update_status(device_id, payload.status)
     except DeviceNotFoundError as error:
@@ -62,7 +93,9 @@ def update_device_status(device_id: str, payload: StatusUpdate) -> DeviceRespons
 
 
 @router.get("/alerts", response_model=list[AlertResponse])
-def list_alerts() -> list[AlertResponse]:
+def list_alerts(
+    repository: DeviceRepository = Depends(get_repository),
+) -> list[AlertResponse]:
     return repository.list_alerts()
 
 
